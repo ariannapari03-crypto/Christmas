@@ -300,26 +300,57 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
   }
   function pull(text, re) { const m = text.match(re); return m ? [(m[1] || m[2] || "").trim(), text.replace(m[0], " ")] : ["", text]; }
   const tidy = (s) => (s || "").replace(/\s*[,;]\s*(?=[,;]|$)/g, "").replace(/^[\s,;:–—\-|]+|[\s,;:–—\-|]+$/g, "").replace(/\s{2,}/g, " ").trim();
-  const SIZE_RE = /\btaglia\s*:?\s*([A-Za-z0-9\/]+(?:[.,]\d)?)/i;
+  const SIZE_RE = /\btaglia\s*:?\s*((?:X{0,3}[SL]|M|XXL|XXXL|unica|\d{1,3}(?:[.,]5)?)(?:\s?\/\s?(?:X{0,3}[SL]|M|\d{1,3}))?)(?![\wà-ÿ'’])/i;
   const COLOR_RE = /\bcolou?re\s*:?\s*([a-zà-ÿ][a-zà-ÿ ]*?)(?=\s*[,;]|\s*$)/i;
   const PRICE_RE = /€\s?(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1,2})?)\s?(?:€|euro\b|eur\b)/i;
+  // WhatsApp copy: "[23/11, 21:08] Mamy: …" or "23/11/25, 21:08 - Mamy: …"
+  const CHAT_PREFIX = /^\[?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?,?\s+\d{1,2}[:.]\d{2}(?::\d{2})?\]?\s*(?:-\s*)?[^:\n]{1,40}?:\s*/;
+  const NOISE = /^(ciao[!.]*|acquista su amazon[:.]?|guarda (questo|qui)[:.]?|ecco[:.]?)$/i;
+  const ASK_LINK = /^domande sui prodotti\?/i; // the URL that follows is the Q&A page, not the product
+  const SHORT_SHOP = { "amzn.eu": "Amazon", "amzn.to": "Amazon", "a.co": "Amazon", "amazon.it": "Amazon", "share.google": "", "bit.ly": "" };
+  const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  function titleForUrl(url) {
+    if (/amazon\.[a-z.]+\/hz\/wishlist|amazon\.[a-z.]+\/.*wishlist/i.test(url)) return "Lista desideri su Amazon";
+    const shop = SHORT_SHOP[domain(url)];
+    if (shop) return "Regalo su " + shop;
+    if (shop === "") return "Regalo (apri il link)";
+    return titleFromUrl(url);
+  }
   function parsePaste(text) {
     const out = [];
-    for (const raw of text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) {
+    let skipNextUrl = false;
+    for (let raw of text.split(/\r?\n/)) {
+      raw = raw.replace(CHAT_PREFIX, "").trim();
+      if (!raw || NOISE.test(raw)) continue;
+      if (ASK_LINK.test(raw)) { skipNextUrl = !URL_RE.test(raw); continue; }
       const m = raw.match(URL_RE);
       const url = m ? m[0].replace(/[).,;]+$/, "") : "";
+      if (url && skipNextUrl) { skipNextUrl = false; if (!tidy(raw.replace(m[0], ""))) continue; }
+      skipNextUrl = false;
       let rest = (m ? raw.replace(m[0], " ") : raw).replace(/^[\s•*·\-–—]+|^\d+[.)]\s+/, "");
+      if (!url && /:\s*$/.test(rest)) continue; // "Poi, sempre graditi:" is a heading, not a gift
+      if (url && /amazon\.[a-z.]+\/.*wishlist/i.test(url)) rest = "";
       const prev = out[out.length - 1];
-      if (url && !tidy(rest) && prev && !prev.link) { prev.link = url; continue; }
+      if (url && !tidy(rest) && prev && !prev.link) { prev.link = url; if (/^Regalo /.test(prev.title)) prev.title = titleForUrl(url); continue; }
       let note = "";
-      const par = rest.match(/[\(\[]([^\)\]]+)[\)\]]/);
+      const par = rest.match(/[\(\[]([^\)\]]+)(?:[\)\]]|$)/);
       if (par) { note = par[1]; rest = rest.replace(par[0], " "); }
       let size, color, price;
       [price, rest] = pull(rest, PRICE_RE); if (!price) [price, note] = pull(note, PRICE_RE);
       [size, rest] = pull(rest, SIZE_RE); if (!size) [size, note] = pull(note, SIZE_RE);
       [color, rest] = pull(rest, COLOR_RE); if (!color) [color, note] = pull(note, COLOR_RE);
-      const title = tidy(rest) || (url ? titleFromUrl(url) : "");
-      out.push({ title, link: url, size, color: tidy(color), note: tidy(note), price: price ? parsePrice(price) : null });
+      // "Taglia M colore nero" on its own line completes the gift above
+      if (!url && !tidy(rest) && !tidy(note) && (size || color || price) && prev) {
+        if (size && !prev.size) prev.size = size;
+        if (color && !prev.color) prev.color = cap(tidy(color));
+        if (price && prev.price == null) prev.price = parsePrice(price);
+        continue;
+      }
+      // "Borsa a mano - Zalando.it": keep the shop as a detail, not in the name
+      const shopTail = rest.match(/\s[-–|]\s*([A-Za-z0-9 .]+\.(?:it|com|eu|de|fr|es))\s*$/i);
+      if (shopTail) { rest = rest.replace(shopTail[0], " "); note = tidy([note, "Su " + shopTail[1]].filter(Boolean).join(", ")); }
+      const title = cap(tidy(rest)) || (url ? titleForUrl(url) : "");
+      out.push({ title, link: url, size, color: cap(tidy(color)), note: tidy(note), price: price ? parsePrice(price) : null });
     }
     return out.filter((x) => x.title || x.link);
   }
@@ -538,7 +569,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     });
     btn.addEventListener("click", () => { const arr = parsed; closeModal(); addItems(list.id, arr); });
     showModal(cardShell(`Per ${list.name}`, "Incolla la lista",
-      [h("p", { class: "hint", style: "margin:0" }, "Incolla il messaggio così com'è: ogni riga diventa un regalo. Riconosco da solo link, prezzo, “taglia …” e “colore …”. Se il link è sulla riga sotto il nome, li unisco."),
+      [h("p", { class: "hint", style: "margin:0" }, "Copia i messaggi da WhatsApp e incollali così come sono: tolgo io data e nome, “Acquista su Amazon” e i link delle domande. Riconosco link, prezzo, “taglia …” e “colore …”, anche su una riga a parte. Controlla l'anteprima qui sotto: potrai correggere ogni regalo dopo."),
        ta, prev, btn]), true);
     setTimeout(() => ta.focus(), 30);
   }
