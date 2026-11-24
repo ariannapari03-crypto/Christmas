@@ -37,4 +37,4 @@ Apri l'indirizzo del sito e clicca **Crea il nostro link**. L'app crea un link s
 - Chi ha il link può vedere e modificare le liste, come un documento Google condiviso con "chiunque abbia il link".
   Mandalo solo in famiglia.
 - Il piano gratuito di Firebase basta e avanza: 50.000 letture e 20.000 modifiche al giorno.
-- `artifact-claude.html` è la prima versione dell'app, che funziona solo dentro claude.ai.
+- `artifact-claude.html` è la versione di anteprima per claude.ai: si rigenera da `index.html` con `python3 build-artifact.py`.
