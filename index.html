@@ -1,0 +1,513 @@
+<title>Liste di Natale</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column "tag shelf" — people as tabs, gifts as tags hanging in a list; claimed tags turn gold. */
+:root {
+  --bg: #f3f6f4;
+  --surface: #ffffff;
+  --ink: #13302a;
+  --muted: #5d716b;
+  --line: #d8e2dd;
+  --pine: #1f4d40;
+  --berry: #b3263e;
+  --berry-ink: #ffffff;
+  --gold: #b9871d;
+  --gold-soft: #f7edd5;
+  --chip: #e6eeea;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1a17; --surface: #15241f; --ink: #e8f0ec; --muted: #9db1aa; --line: #27413a;
+  --pine: #7fc4a9; --berry: #e2566e; --berry-ink: #1a0b0e; --gold: #e2b350; --gold-soft: #2e2715; --chip: #1d322c;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1a17; --surface: #15241f; --ink: #e8f0ec; --muted: #9db1aa; --line: #27413a;
+  --pine: #7fc4a9; --berry: #e2566e; --berry-ink: #1a0b0e; --gold: #e2b350; --gold-soft: #2e2715; --chip: #1d322c;
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 28px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 44px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+h1 span { color: var(--berry); }
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; }
+.countdown { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.countdown b { color: var(--ink); font-family: var(--display); font-size: 22px; font-weight: 700; margin-right: 4px; }
+.whoami { margin-top: 10px; font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--pine); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 26px 0 18px; }
+.tab { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 8px 14px;
+  font: 600 14px var(--body); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.tab .n { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tab[aria-selected="true"] { background: var(--pine); border-color: var(--pine); color: var(--bg); }
+.tab[aria-selected="true"] .n { color: inherit; opacity: .75; }
+.tab.mine { border-style: dashed; }
+.tab.add { color: var(--muted); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+.panel-head h2 { font-size: 26px; font-weight: 700; }
+.panel-head .sub { color: var(--muted); font-size: 13px; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 8px 12px;
+  font: 600 14px var(--body); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--berry); border-color: var(--berry); color: var(--berry-ink); }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 6px 8px; }
+.btn.ghost:hover { color: var(--ink); }
+.btn.danger { color: var(--berry); }
+.btn.small { padding: 5px 9px; font-size: 13px; border-radius: 8px; }
+.toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+
+.items { display: grid; gap: 10px; }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px;
+  display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: start; position: relative; }
+.item .main { min-width: 0; }
+.item h3 { font-family: var(--body); font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.item .note { color: var(--muted); font-size: 14px; margin-top: 2px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 13px; align-items: center; }
+.meta a { color: var(--pine); font-weight: 600; text-decoration: none; }
+.meta a:hover { text-decoration: underline; }
+.price { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+.side { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.claimed { background: var(--gold-soft); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.claimed h3 { text-decoration: line-through; text-decoration-color: var(--gold); text-decoration-thickness: 2px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600;
+  background: var(--chip); color: var(--ink); }
+.pill.gold { background: var(--gold); color: var(--surface); }
+.pill.list { font-weight: 500; color: var(--muted); }
+.manage { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 2px; }
+.bought { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; cursor: pointer; }
+@media (max-width: 520px) { .item { grid-template-columns: 1fr; } .side { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; } }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; margin-bottom: 16px; }
+.card h3 { font-size: 18px; margin-bottom: 10px; }
+.form { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.form .full { grid-column: 1 / -1; }
+@media (max-width: 520px) { .form { grid-template-columns: 1fr; } }
+label.f { display: grid; gap: 4px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+input[type=text], input[type=url], textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 10px; padding: 9px 11px; font: 400 15px var(--body); text-transform: none; letter-spacing: 0; }
+textarea { min-height: 140px; resize: vertical; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.hint { font-size: 13px; color: var(--muted); }
+.preview { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
+.preview li { display: flex; gap: 8px; min-width: 0; }
+.preview li span:last-child { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+.empty { text-align: center; padding: 40px 16px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--r); }
+.empty h3 { color: var(--ink); font-size: 20px; margin-bottom: 6px; }
+.notice { font-size: 13px; color: var(--muted); padding: 10px 12px; border-radius: 10px; background: var(--chip); margin-bottom: 14px; }
+.notice.err { color: var(--berry); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); }
+.modal-bg { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 45%, transparent); z-index: 30; display: grid; place-items: center; padding: 16px; }
+.modal { background: var(--surface); border-radius: 18px; padding: 20px; width: min(420px, 100%); display: grid; gap: 12px; }
+.modal h3 { font-size: 22px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
+.summary b { display: block; font-family: var(--display); font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: no-preference) { .item { transition: background .2s, border-color .2s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="top">
+      <h1>Liste di <span>Natale</span></h1>
+      <div class="countdown" id="countdown"></div>
+    </div>
+    <div class="whoami" id="whoami"></div>
+  </header>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <main id="main">
+    <div class="empty"><h3>Sto aprendo le liste…</h3><p>Qui compaiono le liste di ogni persona, con i regali e chi li ha già presi.</p></div>
+  </main>
+</div>
+<div id="overlay"></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v == null || v === false) continue;
+      if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else if (k === "class") el.className = v;
+      else if (k === "value") el.value = v;
+      else if (k === "checked") el.checked = !!v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
+    return el;
+  }
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  };
+
+  const S = {
+    db: null, ready: false, error: null, slow: false,
+    lists: [], items: [],
+    active: store.get("tab", ""),
+    me: store.get("me", ""),
+    hideClaimed: store.get("hideClaimed", "0") === "1",
+    form: null,        // null | "single" | "paste"
+    editing: null,     // item id
+    confirm: null,     // key of pending two-step confirm
+    readOnly: false,
+  };
+
+  // ---------- helpers ----------
+  const norm = (s) => (s || "").trim().toLowerCase();
+  const isMe = (name) => S.me && norm(name) === norm(S.me);
+  const safeUrl = (u) => { try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:" ? x.href : null; } catch { return null; } };
+  const domain = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+  const parsePrice = (s) => { const n = parseFloat(String(s || "").replace(/[^\d,.]/g, "").replace(",", ".")); return isFinite(n) ? n : null; };
+  const eur = (n) => n == null ? "" : n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  const listOf = (id) => S.lists.find((l) => l.id === id);
+  const itemsOf = (id) => S.items.filter((i) => i.listId === id);
+  const ownList = (list) => list && isMe(list.name);
+
+  function toast(msg) {
+    const t = h("div", { class: "toast", role: "status" }, msg);
+    document.body.append(t);
+    setTimeout(() => t.remove(), 2200);
+  }
+  async function write(fn, okMsg) {
+    try { await fn(); if (okMsg) toast(okMsg); }
+    catch (e) {
+      if (e && e.code === "invalid_argument") { S.readOnly = true; toast("Non hai il permesso di modificare queste liste."); render(); }
+      else if (e && e.code === "quota_exceeded") toast("Spazio esaurito: elimina qualche regalo vecchio.");
+      else toast("Non sono riuscito a salvare. Riprova tra un attimo.");
+    }
+  }
+
+  // ---------- paste parser ----------
+  const URL_RE = /https?:\/\/[^\s<>"']+/i;
+  function titleFromUrl(u) {
+    try {
+      const segs = new URL(u).pathname.split("/").filter(Boolean)
+        .filter((s) => !/^\d+$/.test(s) && !/^(p|dp|product|prodotto|it|en|item|html?)$/i.test(s));
+      const best = segs.sort((a, b) => b.length - a.length)[0] || "";
+      const t = decodeURIComponent(best).replace(/\.(html?|php|aspx?)$/i, "").replace(/[-_+]+/g, " ").replace(/\b[a-z0-9]{10,}\b/gi, "").trim();
+      return t ? t.charAt(0).toUpperCase() + t.slice(1) : domain(u);
+    } catch { return u; }
+  }
+  function parsePaste(text) {
+    const out = [];
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    for (const raw of lines) {
+      const m = raw.match(URL_RE);
+      const url = m ? m[0].replace(/[).,;]+$/, "") : "";
+      let rest = (m ? raw.replace(m[0], " ") : raw).replace(/^[\s•*·\-–—\d.)]+/, "").replace(/[\s:–—\-|]+$/, "").trim();
+      const prev = out[out.length - 1];
+      if (url && !rest && prev && !prev.link) { prev.link = url; continue; } // "Titolo" then a line with only the link
+      let note = "";
+      const split = rest.match(/^(.*?)\s*[\(\[](.+)[\)\]]\s*$/);
+      if (split && split[1]) { rest = split[1]; note = split[2]; }
+      const pm = rest.match(/(\d+[.,]?\d*)\s?(€|eur\b)/i) || rest.match(/€\s?(\d+[.,]?\d*)/);
+      const price = pm ? pm[1] : null;
+      if (pm) rest = rest.replace(pm[0], " ").replace(/\s{2,}/g, " ").trim();
+      out.push({ title: rest || (url ? titleFromUrl(url) : ""), link: url, note, price: price ? parsePrice(price) : null });
+    }
+    return out.filter((x) => x.title || x.link);
+  }
+
+  // ---------- data ----------
+  async function boot() {
+    const timer = setTimeout(() => { if (!S.ready) { S.slow = true; render(); } }, 10000);
+    let db = null;
+    try { db = await claude.use("db"); } catch {}
+    if (!db) { clearTimeout(timer); S.error = "Per vedere e modificare le liste devi aprire questa pagina dal link condiviso, con l'accesso a claude.ai."; render(); return; }
+    S.db = db;
+    let gotLists = false, gotItems = false;
+    const done = () => { if (gotLists && gotItems) { S.ready = true; S.slow = false; clearTimeout(timer); } render(); };
+    const onErr = (e) => { clearTimeout(timer); S.error = e && e.code === "revoked" ? "L'accesso a questa pagina è cambiato." : "Non riesco a leggere le liste in questo momento."; render(); };
+    db.collection("lists").orderBy("order").onSnapshot((snap) => {
+      S.lists = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!snap.metadata.fromCache) gotLists = true; done();
+    }, onErr);
+    db.collection("items").orderBy("createdAt").onSnapshot((snap) => {
+      S.items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!snap.metadata.fromCache) gotItems = true; done();
+    }, onErr);
+  }
+
+  function addList(name) {
+    name = name.trim(); if (!name) return;
+    const order = S.lists.reduce((m, l) => Math.max(m, l.order || 0), 0) + 1;
+    const ref = S.db.collection("lists").doc();
+    S.active = ref.id; store.set("tab", ref.id);
+    write(() => ref.set({ name, order, createdAt: Date.now() }), `Lista di ${name} creata`);
+  }
+  function addItems(listId, arr) {
+    let t = Date.now();
+    return write(async () => {
+      for (const it of arr) {
+        await S.db.collection("items").add({
+          listId, title: it.title.trim(), link: safeUrl(it.link) || "", note: (it.note || "").trim(),
+          price: it.price ?? null, createdAt: t++, claimedBy: "", bought: false
+        });
+      }
+    }, arr.length === 1 ? "Regalo aggiunto" : `${arr.length} regali aggiunti`);
+  }
+
+  // ---------- who am I ----------
+  function askName(then) {
+    const known = [...new Set([...S.lists.map((l) => l.name), ...S.items.map((i) => i.claimedBy).filter(Boolean)])];
+    const close = () => { $("#overlay").replaceChildren(); };
+    const input = h("input", { type: "text", id: "me-name", placeholder: "Es. Zia Carla", value: S.me, autocomplete: "given-name" });
+    const save = () => {
+      const v = input.value.trim(); if (!v) { input.focus(); return; }
+      S.me = v; store.set("me", v); close(); render(); then && then();
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") close(); });
+    const modal = h("div", { class: "modal-bg", onclick: (e) => { if (e.target === e.currentTarget) close(); } },
+      h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "me-title" },
+        h("h3", { id: "me-title" }, "Chi sei?"),
+        h("p", { class: "hint" }, "Il tuo nome compare sui regali che prendi, così gli altri sanno che sono già presi. Se scegli il nome di una lista, quella lista ti nasconde chi ha preso cosa: niente spoiler."),
+        input,
+        known.length ? h("div", { class: "chips" }, known.map((n) => h("button", { class: "btn small", onclick: () => { input.value = n; save(); } }, n))) : null,
+        h("div", { class: "row" }, h("button", { class: "btn primary", onclick: save }, "Salva"), h("button", { class: "btn ghost", onclick: close }, "Annulla"))
+      ));
+    $("#overlay").replaceChildren(modal);
+    setTimeout(() => input.focus(), 0);
+  }
+
+  // ---------- rendering ----------
+  function renderCountdown() {
+    const now = new Date();
+    let xmas = new Date(now.getFullYear(), 11, 25);
+    if (now > new Date(now.getFullYear(), 11, 26)) xmas = new Date(now.getFullYear() + 1, 11, 25);
+    const days = Math.ceil((xmas - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+    $("#countdown").replaceChildren(days <= 0 ? h("b", {}, "Buon Natale!") : [h("b", {}, days), days === 1 ? "giorno a Natale" : "giorni a Natale"]);
+  }
+
+  function renderWho() {
+    $("#whoami").replaceChildren(
+      S.me ? ["Stai usando l'app come ", h("b", {}, S.me), " · ", h("button", { class: "linkbtn", onclick: () => askName() }, "cambia")]
+           : ["Prima di prenotare un regalo, ", h("button", { class: "linkbtn", onclick: () => askName() }, "dimmi chi sei")]
+    );
+  }
+
+  function renderTabs() {
+    const tabs = $("#tabs");
+    if (!S.ready && !S.lists.length) { tabs.replaceChildren(); return; }
+    const pick = (id) => { S.active = id; store.set("tab", id); S.form = null; S.editing = null; S.confirm = null; render(); };
+    const mineCount = S.items.filter((i) => i.claimedBy && isMe(i.claimedBy)).length;
+    tabs.replaceChildren(
+      ...S.lists.map((l) => {
+        const its = itemsOf(l.id), free = its.filter((i) => !i.claimedBy).length;
+        const n = ownList(l) ? its.length : `${free}/${its.length}`;
+        return h("button", { class: "tab", role: "tab", "aria-selected": String(S.active === l.id), onclick: () => pick(l.id), title: ownList(l) ? "La tua lista" : `${free} ancora liberi su ${its.length}` }, l.name, h("span", { class: "n" }, n));
+      }),
+      h("button", { class: "tab mine", role: "tab", "aria-selected": String(S.active === "mine"), onclick: () => pick("mine") }, "Cosa regalo io", h("span", { class: "n" }, mineCount)),
+      S.readOnly ? null : h("button", { class: "tab add", onclick: () => { S.active = "new"; S.form = null; render(); } }, "+ Persona")
+    );
+  }
+
+  function itemForm(listId, item) {
+    const f = {
+      title: h("input", { type: "text", id: "f-title", value: item?.title || "", placeholder: "Es. Maglione in cashmere" }),
+      link: h("input", { type: "url", id: "f-link", value: item?.link || "", placeholder: "https://… (con taglia e colore già scelti)" }),
+      note: h("input", { type: "text", id: "f-note", value: item?.note || "", placeholder: "Taglia M, colore blu notte" }),
+      price: h("input", { type: "text", id: "f-price", value: item?.price != null ? String(item.price).replace(".", ",") : "", placeholder: "Es. 49,90", inputmode: "decimal" }),
+    };
+    f.link.addEventListener("change", () => { if (!f.title.value.trim() && safeUrl(f.link.value)) f.title.value = titleFromUrl(f.link.value); });
+    const submit = (e) => {
+      e.preventDefault();
+      const title = f.title.value.trim() || (safeUrl(f.link.value) ? titleFromUrl(f.link.value) : "");
+      if (!title) { f.title.focus(); return; }
+      if (f.link.value.trim() && !safeUrl(f.link.value.trim())) { toast("Il link deve iniziare con https://"); f.link.focus(); return; }
+      const data = { title, link: safeUrl(f.link.value.trim()) || "", note: f.note.value.trim(), price: parsePrice(f.price.value) };
+      if (item) { const id = item.id; S.editing = null; render(); write(() => S.db.doc("items/" + id).update(data), "Modificato"); }
+      else { addItems(listId, [data]); f.title.value = f.link.value = f.note.value = f.price.value = ""; f.title.focus(); }
+    };
+    return h("form", { class: "form", onsubmit: submit },
+      h("label", { class: "f full" }, "Cosa", f.title),
+      h("label", { class: "f full" }, "Link", f.link),
+      h("label", { class: "f" }, "Dettagli", f.note),
+      h("label", { class: "f" }, "Prezzo indicativo (€)", f.price),
+      h("div", { class: "row full" },
+        h("button", { class: "btn primary", type: "submit" }, item ? "Salva modifiche" : "Aggiungi regalo"),
+        h("button", { class: "btn ghost", type: "button", onclick: () => { S.form = null; S.editing = null; render(); } }, "Chiudi"))
+    );
+  }
+
+  function pasteForm(list) {
+    const ta = h("textarea", { id: "f-paste", placeholder: "Incolla qui il messaggio, un regalo per riga:\n\nMaglione blu (taglia M) https://www.zalando.it/...\nProfumo 50ml 89€ https://www.sephora.it/...\nLibro di cucina\nhttps://www.amazon.it/..." });
+    const prev = h("ul", { class: "preview" });
+    const btn = h("button", { class: "btn primary", type: "button", disabled: true }, "Aggiungi");
+    let parsed = [];
+    const update = () => {
+      parsed = parsePaste(ta.value);
+      prev.replaceChildren(...parsed.slice(0, 12).map((p) => h("li", {}, h("span", {}, "🎁 " + p.title + (p.note ? ` · ${p.note}` : "") + (p.price != null ? ` · ${eur(p.price)}` : "")), h("span", {}, p.link ? domain(p.link) : "senza link"))),
+        parsed.length > 12 ? h("li", {}, `…e altri ${parsed.length - 12}`) : null);
+      btn.textContent = parsed.length ? `Aggiungi ${parsed.length} ${parsed.length === 1 ? "regalo" : "regali"} a ${list.name}` : "Aggiungi";
+      btn.disabled = !parsed.length;
+    };
+    ta.addEventListener("input", update);
+    btn.addEventListener("click", async () => { const arr = parsed; S.form = null; render(); await addItems(list.id, arr); });
+    setTimeout(() => ta.focus(), 0);
+    return h("div", {},
+      h("p", { class: "hint" }, "Ogni riga diventa un regalo. Il link viene riconosciuto da solo; quello che scrivi tra parentesi va nei dettagli. Se il link è sulla riga sotto al nome, li unisco io."),
+      ta, prev,
+      h("div", { class: "row", style: "margin-top:10px" }, btn, h("button", { class: "btn ghost", type: "button", onclick: () => { S.form = null; render(); } }, "Chiudi")));
+  }
+
+  // Keep open forms alive across live updates, so typing is never lost.
+  const formCache = new Map();
+  function cached(key, build) {
+    for (const k of formCache.keys()) if (k !== key) formCache.delete(k);
+    if (!formCache.has(key)) formCache.set(key, build());
+    return formCache.get(key);
+  }
+
+  function confirmBtn(key, label, sure, action) {
+    if (S.confirm === key) return [
+      h("button", { class: "btn small danger", onclick: () => { S.confirm = null; action(); } }, sure),
+      h("button", { class: "btn small ghost", onclick: () => { S.confirm = null; render(); } }, "No")
+    ];
+    return h("button", { class: "btn small ghost", onclick: () => { S.confirm = key; render(); } }, label);
+  }
+
+  function itemCard(it, { showList = false } = {}) {
+    const list = listOf(it.listId);
+    const own = ownList(list);
+    const claimed = !!it.claimedBy && !own;
+    const mineClaim = claimed && isMe(it.claimedBy);
+    const url = safeUrl(it.link);
+    if (S.editing === it.id) return cached("edit-" + it.id, () => h("div", { class: "card" }, h("h3", {}, "Modifica regalo"), itemForm(it.listId, it)));
+
+    const claim = () => {
+      const go = () => write(() => S.db.doc("items/" + it.id).update({ claimedBy: S.me, claimedAt: Date.now(), bought: false }), `Segnato: lo prendi tu`);
+      S.me ? go() : askName(go);
+    };
+    const side = h("div", { class: "side" },
+      url ? h("a", { class: "btn small", href: url, target: "_blank", rel: "noopener noreferrer" }, "Apri link ↗") : null,
+      own || S.readOnly ? null :
+      !it.claimedBy ? h("button", { class: "btn small primary", onclick: claim }, "Lo prendo io") :
+      mineClaim ? h("span", { class: "pill gold" }, "Lo prendi tu") :
+                  h("span", { class: "pill gold" }, "Lo prende " + it.claimedBy)
+    );
+    const manage = S.readOnly ? null : h("div", { class: "manage" },
+      mineClaim ? h("label", { class: "bought" }, h("input", { type: "checkbox", checked: it.bought, onchange: (e) => write(() => S.db.doc("items/" + it.id).update({ bought: e.target.checked })) }), "Già comprato") : null,
+      mineClaim ? h("button", { class: "btn small ghost", onclick: () => write(() => S.db.doc("items/" + it.id).update({ claimedBy: "", bought: false }), "Regalo di nuovo libero") }, "Non lo prendo più") : null,
+      claimed && !mineClaim ? confirmBtn("free-" + it.id, "Libera", "Sicuro di liberarlo?", () => write(() => S.db.doc("items/" + it.id).update({ claimedBy: "", bought: false }), "Regalo di nuovo libero")) : null,
+      h("span", { style: "flex:1" }),
+      h("button", { class: "btn small ghost", onclick: () => { S.editing = it.id; S.form = null; render(); } }, "Modifica"),
+      confirmBtn("del-" + it.id, "Elimina", "Elimina davvero", () => write(() => S.db.doc("items/" + it.id).delete(), "Eliminato"))
+    );
+    return h("article", { class: "item" + (claimed ? " claimed" : "") },
+      h("div", { class: "main" },
+        h("h3", {}, it.title),
+        it.note ? h("div", { class: "note" }, it.note) : null,
+        h("div", { class: "meta" },
+          showList && list ? h("span", { class: "pill list" }, "per " + list.name) : null,
+          it.price != null ? h("span", { class: "price" }, eur(it.price)) : null,
+          url ? h("span", {}, domain(url)) : h("span", { class: "hint" }, "nessun link"))),
+      side, manage);
+  }
+
+  function renderList(list) {
+    const own = ownList(list);
+    let its = itemsOf(list.id);
+    const free = its.filter((i) => !i.claimedBy).length;
+    if (S.hideClaimed && !own) its = its.filter((i) => !i.claimedBy);
+    const head = h("div", { class: "panel-head" },
+      h("div", {}, h("h2", {}, list.name),
+        h("div", { class: "sub" }, own ? "Questa è la tua lista: non vedi chi ha preso cosa." : `${free} liberi · ${itemsOf(list.id).length - free} già presi`)),
+      h("div", { class: "tools" },
+        own ? null : h("label", { class: "toggle" }, h("input", { type: "checkbox", id: "hide-claimed", checked: S.hideClaimed, onchange: (e) => { S.hideClaimed = e.target.checked; store.set("hideClaimed", e.target.checked ? "1" : "0"); render(); } }), "Nascondi già presi"),
+        S.readOnly ? null : h("button", { class: "btn", onclick: () => { S.form = "paste"; S.editing = null; render(); } }, "Incolla lista"),
+        S.readOnly ? null : h("button", { class: "btn primary", onclick: () => { S.form = "single"; S.editing = null; render(); } }, "+ Regalo")));
+    const form = S.form === "single" ? cached("single-" + list.id, () => h("div", { class: "card" }, h("h3", {}, `Nuovo regalo per ${list.name}`), itemForm(list.id)))
+               : S.form === "paste" ? cached("paste-" + list.id, () => h("div", { class: "card" }, h("h3", {}, `Incolla la lista di ${list.name}`), pasteForm(list))) : null;
+    const body = its.length ? h("div", { class: "items" }, its.map((i) => itemCard(i)))
+      : h("div", { class: "empty" },
+          h("h3", {}, itemsOf(list.id).length ? "Tutto preso!" : "Lista ancora vuota"),
+          h("p", {}, itemsOf(list.id).length ? "Ogni regalo di questa lista ha già qualcuno che lo prende." : `Aggiungi i regali uno alla volta con “+ Regalo”, oppure incolla tutto il messaggio di ${list.name} con “Incolla lista”.`));
+    const footer = S.readOnly ? null : h("div", { class: "row", style: "margin-top:28px;justify-content:flex-end" },
+      h("button", { class: "btn small ghost", onclick: () => renameList(list) }, "Rinomina lista"),
+      confirmBtn("dellist-" + list.id, "Elimina lista", `Elimina la lista e i suoi ${itemsOf(list.id).length} regali`, () => deleteList(list)));
+    return [head, form, body, footer];
+  }
+
+  function renameList(list) {
+    const input = h("input", { type: "text", id: "rename", value: list.name });
+    const close = () => $("#overlay").replaceChildren();
+    const save = () => { const v = input.value.trim(); if (!v) return; close(); write(() => S.db.doc("lists/" + list.id).update({ name: v }), "Rinominata"); };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") close(); });
+    $("#overlay").replaceChildren(h("div", { class: "modal-bg", onclick: (e) => { if (e.target === e.currentTarget) close(); } },
+      h("div", { class: "modal", role: "dialog", "aria-modal": "true" }, h("h3", {}, "Rinomina lista"), input,
+        h("div", { class: "row" }, h("button", { class: "btn primary", onclick: save }, "Salva"), h("button", { class: "btn ghost", onclick: close }, "Annulla")))));
+    setTimeout(() => input.select(), 0);
+  }
+  function deleteList(list) {
+    const ids = itemsOf(list.id).map((i) => i.id);
+    S.active = ""; store.set("tab", "");
+    write(async () => { for (const id of ids) await S.db.doc("items/" + id).delete(); await S.db.doc("lists/" + list.id).delete(); }, "Lista eliminata");
+  }
+
+  function renderMine() {
+    const head = h("div", { class: "panel-head" }, h("div", {}, h("h2", {}, "Cosa regalo io"), h("div", { class: "sub" }, "I regali che hai prenotato, da tutte le liste.")));
+    if (!S.me) return [head, h("div", { class: "empty" }, h("h3", {}, "Prima dimmi chi sei"), h("p", {}, "Così ritrovo i regali che hai prenotato."), h("button", { class: "btn primary", onclick: () => askName() }, "Scegli il tuo nome"))];
+    const mine = S.items.filter((i) => i.claimedBy && isMe(i.claimedBy) && !ownList(listOf(i.listId)));
+    if (!mine.length) return [head, h("div", { class: "empty" }, h("h3", {}, "Ancora nessun regalo"), h("p", {}, "Apri la lista di qualcuno e tocca “Lo prendo io” sul regalo che scegli."))];
+    const total = mine.reduce((s, i) => s + (i.price || 0), 0);
+    const bought = mine.filter((i) => i.bought).length;
+    return [head,
+      h("div", { class: "summary" },
+        h("div", {}, h("b", {}, mine.length), "regali prenotati"),
+        h("div", {}, h("b", {}, `${bought}/${mine.length}`), "già comprati"),
+        total ? h("div", {}, h("b", {}, eur(total)), "spesa indicativa") : null),
+      h("div", { class: "items" }, mine.map((i) => itemCard(i, { showList: true })))];
+  }
+
+  function renderNew() {
+    const input = h("input", { type: "text", id: "new-list", placeholder: "Es. Mamma, Papà, Zia Carla…" });
+    const go = (e) => { e.preventDefault(); addList(input.value); };
+    setTimeout(() => input.focus(), 0);
+    return h("div", { class: "card" }, h("h3", {}, "Nuova lista"),
+      h("p", { class: "hint", style: "margin:0 0 10px" }, "Una lista per ogni persona che riceve regali. Puoi gestirla anche al posto suo."),
+      h("form", { class: "row", onsubmit: go }, h("div", { style: "flex:1;min-width:180px" }, input), h("button", { class: "btn primary", type: "submit" }, "Crea lista"),
+        S.lists.length ? h("button", { class: "btn ghost", type: "button", onclick: () => { S.active = S.lists[0].id; render(); } }, "Annulla") : null));
+  }
+
+  function render() {
+    renderCountdown(); renderWho();
+    const main = $("#main");
+    if (S.error) { $("#tabs").replaceChildren(); main.replaceChildren(h("div", { class: "notice err" }, S.error)); return; }
+    if (!S.ready && !S.lists.length) {
+      main.replaceChildren(h("div", { class: "empty" }, h("h3", {}, S.slow ? "Le liste non rispondono" : "Sto aprendo le liste…"),
+        h("p", {}, S.slow ? "Controlla la connessione: appena il collegamento torna, le liste compaiono da sole." : "Qui compaiono le liste di ogni persona, con i regali e chi li ha già presi.")));
+      $("#tabs").replaceChildren(); return;
+    }
+    if (S.active !== "mine" && S.active !== "new" && !listOf(S.active)) S.active = S.lists[0]?.id || "new";
+    renderTabs();
+    const parts = [];
+    if (S.slow) parts.push(h("div", { class: "notice" }, "Collegamento lento: quello che vedi potrebbe non essere aggiornato."));
+    if (S.readOnly) parts.push(h("div", { class: "notice" }, "Puoi guardare le liste ma non modificarle. Chiedi a chi te le ha mandate di darti l'accesso da “Contributor” o “Editor”."));
+    if (S.active === "mine") parts.push(...renderMine());
+    else if (S.active === "new") parts.push(cached("new", renderNew));
+    else parts.push(...renderList(listOf(S.active)));
+    if (!S.form && !S.editing && S.active !== "new") formCache.clear();
+    const y = window.scrollY;
+    main.replaceChildren(...parts.flat().filter(Boolean));
+    window.scrollTo(0, y);
+  }
+
+  render();
+  boot();
+})();
+</script>
