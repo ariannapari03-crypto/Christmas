@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Ogni famiglia ha uno spazio con un codice segreto lungo (la parte del link dopo il #).
+    // Chi conosce il codice legge e modifica; nessuno può elencare gli spazi delle altre famiglie.
+    match /families/{fam}/{coll}/{id} {
+      allow read, delete: if fam.size() >= 16 && coll in ['lists', 'items'];
+      allow create, update: if fam.size() >= 16 && coll in ['lists', 'items']
+        && request.resource.data.keys().size() <= 20;
+    }
+  }
+}

@@ -1,8 +1,20 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1f4d40">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E">
 <title>Liste di Natale</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
 <style>
+html { -webkit-text-size-adjust: 100%; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
 /* Layout: one column "tag shelf" — people as tabs, gifts as tags hanging in a list; claimed tags turn gold. */
 :root {
   --bg: #f3f6f4;
@@ -117,7 +129,11 @@ textarea { min-height: 140px; resize: vertical; }
 .summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
 .summary b { display: block; font-family: var(--display); font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: no-preference) { .item { transition: background .2s, border-color .2s; } }
+.share { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.share input { flex: 1; min-width: 200px; font-size: 13px; }
 </style>
+</head>
+<body>
 
 <div class="wrap">
   <header>
@@ -134,6 +150,9 @@ textarea { min-height: 140px; resize: vertical; }
 </div>
 <div id="overlay"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -150,6 +169,7 @@ textarea { min-height: 140px; resize: vertical; }
     for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
     return el;
   }
+  const put = (el, ...kids) => el.replaceChildren(...kids.flat(5).filter((k) => k != null && k !== false));
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch {} }
@@ -186,8 +206,8 @@ textarea { min-height: 140px; resize: vertical; }
   async function write(fn, okMsg) {
     try { await fn(); if (okMsg) toast(okMsg); }
     catch (e) {
-      if (e && e.code === "invalid_argument") { S.readOnly = true; toast("Non hai il permesso di modificare queste liste."); render(); }
-      else if (e && e.code === "quota_exceeded") toast("Spazio esaurito: elimina qualche regalo vecchio.");
+      if (e && (e.code === "permission-denied" || e.code === "invalid-argument")) { S.readOnly = true; toast("Non hai il permesso di modificare queste liste."); render(); }
+      else if (e && e.code === "resource-exhausted") toast("Limite giornaliero raggiunto: riprova domani.");
       else toast("Non sono riuscito a salvare. Riprova tra un attimo.");
     }
   }
@@ -224,23 +244,68 @@ textarea { min-height: 140px; resize: vertical; }
   }
 
   // ---------- data ----------
+  // ---------- family space (secret part of the link) ----------
+  const ID_RE = /^[a-z0-9]{16,40}$/;
+  function familyFromHash() { const v = decodeURIComponent(location.hash.slice(1)).trim(); return ID_RE.test(v) ? v : ""; }
+  function newFamilyId() {
+    const a = new Uint8Array(20); crypto.getRandomValues(a);
+    return Array.from(a, (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
+  }
+  const shareLink = () => location.origin + location.pathname + "#" + S.family;
+  async function copy(text, input) {
+    try { await navigator.clipboard.writeText(text); toast("Link copiato"); }
+    catch { if (input) { input.focus(); input.select(); } toast("Seleziona il link e copialo"); }
+  }
+  function shareBox() {
+    const input = h("input", { type: "text", id: "share-link", value: shareLink(), readonly: true, onfocus: (e) => e.target.select() });
+    return h("div", { class: "share" }, input, h("button", { class: "btn primary", type: "button", onclick: () => copy(shareLink(), input) }, "Copia link"));
+  }
+  function openShare() {
+    const close = () => $("#overlay").replaceChildren();
+    $("#overlay").replaceChildren(h("div", { class: "modal-bg", onclick: (e) => { if (e.target === e.currentTarget) close(); } },
+      h("div", { class: "modal", role: "dialog", "aria-modal": "true" }, h("h3", {}, "Link per la famiglia"),
+        h("p", { class: "hint" }, "Manda questo link su WhatsApp a chi vuoi. Chi lo apre vede e modifica le liste, senza account e senza password. Non pubblicarlo in giro: chi ha il link può modificare le liste."),
+        shareBox(), h("div", { class: "row" }, h("button", { class: "btn ghost", onclick: close }, "Chiudi")))));
+  }
+
   async function boot() {
-    const timer = setTimeout(() => { if (!S.ready) { S.slow = true; render(); } }, 10000);
-    let db = null;
-    try { db = await claude.use("db"); } catch {}
-    if (!db) { clearTimeout(timer); S.error = "Per vedere e modificare le liste devi aprire questa pagina dal link condiviso, con l'accesso a claude.ai."; render(); return; }
+    const cfg = window.FIREBASE_CONFIG;
+    if (!cfg || !cfg.projectId || !window.firebase) {
+      S.error = "L'app non è ancora collegata al database. Segui i passi nel file LEGGIMI.md del progetto (configurazione di Firebase).";
+      render(); return;
+    }
+    S.family = familyFromHash() || store.get("family", "");
+    if (!ID_RE.test(S.family)) { S.family = ""; S.needsFamily = true; render(); return; }
+    store.set("family", S.family);
+    if (location.hash.slice(1) !== S.family) history.replaceState(null, "", "#" + S.family);
+    S.needsFamily = false;
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    const fs = firebase.firestore();
+    const base = "families/" + S.family + "/";
+    const db = { collection: (p) => fs.collection(base + p), doc: (p) => fs.doc(base + p) };
     S.db = db;
+    const timer = setTimeout(() => { if (!S.ready) { S.slow = true; render(); } }, 10000);
     let gotLists = false, gotItems = false;
     const done = () => { if (gotLists && gotItems) { S.ready = true; S.slow = false; clearTimeout(timer); } render(); };
-    const onErr = (e) => { clearTimeout(timer); S.error = e && e.code === "revoked" ? "L'accesso a questa pagina è cambiato." : "Non riesco a leggere le liste in questo momento."; render(); };
-    db.collection("lists").orderBy("order").onSnapshot((snap) => {
+    const onErr = () => { clearTimeout(timer); S.error = "Non riesco a leggere le liste. Controlla che il link sia completo (la parte dopo il #) e riprova."; render(); };
+    db.collection("lists").orderBy("order").onSnapshot({ includeMetadataChanges: true }, (snap) => {
       S.lists = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (!snap.metadata.fromCache) gotLists = true; done();
     }, onErr);
-    db.collection("items").orderBy("createdAt").onSnapshot((snap) => {
+    db.collection("items").orderBy("createdAt").onSnapshot({ includeMetadataChanges: true }, (snap) => {
       S.items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (!snap.metadata.fromCache) gotItems = true; done();
     }, onErr);
+  }
+  window.addEventListener("hashchange", () => { const f = familyFromHash(); if (f && f !== S.family) { store.set("family", f); location.reload(); } });
+
+  function renderSetup() {
+    const go = () => { S.family = newFamilyId(); location.hash = S.family; store.set("family", S.family); boot().then(() => setTimeout(openShare, 300)); };
+    return h("div", { class: "card" },
+      h("h3", {}, "Crea lo spazio della tua famiglia"),
+      h("p", { class: "hint", style: "margin:0 0 12px" }, "Creo un link segreto solo per voi. Poi lo mandi alle zie su WhatsApp: lo aprono e vedono subito le liste, senza account."),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: go }, "Crea il nostro link")),
+      h("p", { class: "hint", style: "margin:12px 0 0" }, "Hai già ricevuto un link? Aprilo direttamente: ti porta alle liste della tua famiglia."));
   }
 
   function addList(name) {
@@ -290,13 +355,14 @@ textarea { min-height: 140px; resize: vertical; }
     let xmas = new Date(now.getFullYear(), 11, 25);
     if (now > new Date(now.getFullYear(), 11, 26)) xmas = new Date(now.getFullYear() + 1, 11, 25);
     const days = Math.ceil((xmas - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
-    $("#countdown").replaceChildren(days <= 0 ? h("b", {}, "Buon Natale!") : [h("b", {}, days), days === 1 ? "giorno a Natale" : "giorni a Natale"]);
+    put($("#countdown"), days <= 0 ? h("b", {}, "Buon Natale!") : [h("b", {}, days), days === 1 ? "giorno a Natale" : "giorni a Natale"]);
   }
 
   function renderWho() {
-    $("#whoami").replaceChildren(
+    put($("#whoami"),
       S.me ? ["Stai usando l'app come ", h("b", {}, S.me), " · ", h("button", { class: "linkbtn", onclick: () => askName() }, "cambia")]
-           : ["Prima di prenotare un regalo, ", h("button", { class: "linkbtn", onclick: () => askName() }, "dimmi chi sei")]
+           : ["Prima di prenotare un regalo, ", h("button", { class: "linkbtn", onclick: () => askName() }, "dimmi chi sei")],
+      S.family ? [" · ", h("button", { class: "linkbtn", onclick: openShare }, "Link per la famiglia")] : null
     );
   }
 
@@ -487,6 +553,7 @@ textarea { min-height: 140px; resize: vertical; }
   function render() {
     renderCountdown(); renderWho();
     const main = $("#main");
+    if (S.needsFamily) { $("#tabs").replaceChildren(); $("#main").replaceChildren(renderSetup()); return; }
     if (S.error) { $("#tabs").replaceChildren(); main.replaceChildren(h("div", { class: "notice err" }, S.error)); return; }
     if (!S.ready && !S.lists.length) {
       main.replaceChildren(h("div", { class: "empty" }, h("h3", {}, S.slow ? "Le liste non rispondono" : "Sto aprendo le liste…"),
@@ -497,7 +564,7 @@ textarea { min-height: 140px; resize: vertical; }
     renderTabs();
     const parts = [];
     if (S.slow) parts.push(h("div", { class: "notice" }, "Collegamento lento: quello che vedi potrebbe non essere aggiornato."));
-    if (S.readOnly) parts.push(h("div", { class: "notice" }, "Puoi guardare le liste ma non modificarle. Chiedi a chi te le ha mandate di darti l'accesso da “Contributor” o “Editor”."));
+    if (S.readOnly) parts.push(h("div", { class: "notice" }, "Il database non accetta modifiche. Controlla le regole di Firebase (vedi LEGGIMI.md)."));
     if (S.active === "mine") parts.push(...renderMine());
     else if (S.active === "new") parts.push(cached("new", renderNew));
     else parts.push(...renderList(listOf(S.active)));
@@ -511,3 +578,5 @@ textarea { min-height: 140px; resize: vertical; }
   boot();
 })();
 </script>
+</body>
+</html>
