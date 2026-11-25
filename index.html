@@ -212,6 +212,8 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
 .box::before { top: 0; bottom: 0; left: 50%; width: 16px; transform: translateX(-50%); }
 .box::after { left: 0; right: 0; top: 34%; height: 16px; }
 .box .bow { position: absolute; z-index: 1; left: 50%; top: 34%; transform: translate(-50%, -62%); font-size: 40px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.3)); }
+.pick { display: grid; gap: var(--s2); }
+.pick-label { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
 .box .label { position: relative; z-index: 2; width: 100%; background: var(--paper); border-radius: var(--r-sm); padding: var(--s2) var(--s3); display: grid; gap: 2px;
   box-shadow: 0 4px 10px rgba(0,0,0,.2); }
 .box .label b { font-family: var(--serif); font-weight: 400; font-size: 24px; line-height: 1.05; overflow-wrap: anywhere; }
@@ -293,7 +295,9 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
   const listOf = (id) => S.lists.find((l) => l.id === id);
   const itemOf = (id) => S.items.find((i) => i.id === id);
   const itemsOf = (id) => S.items.filter((i) => i.listId === id);
-  const ownList = (list) => !!list && isMe(list.name);
+  // "Rossana Cremona" owns the list "Rossana": compare the whole name or its first word
+  const first = (x) => norm(x).split(/\s+/)[0];
+  const ownList = (list) => !!list && !!S.me && (isMe(list.name) || first(S.me) === norm(list.name) || first(list.name) === norm(S.me));
   const rememberMe = (name) => { S.me = name.trim(); store.set("me", S.me); };
 
   function toast(msg) {
@@ -469,16 +473,16 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
   const unbook = (id) => write(() => S.db.doc("items/" + id).update({ claimedBy: "", bought: false }), "Prenotazione annullata");
 
   // ---------- cards (modals) ----------
-  function closeModal() { S.open = null; S.confirm = null; $("#overlay").replaceChildren(); document.body.style.overflow = ""; }
+  function closeModal(force) { if (S.open && S.open.required && force !== true) return; S.open = null; S.confirm = null; $("#overlay").replaceChildren(); document.body.style.overflow = ""; }
   function showModal(card, animate) {
     if (animate) card.classList.add("anim");
     $("#overlay").replaceChildren(h("div", { class: "overlay", onclick: (e) => { if (e.target === e.currentTarget) closeModal(); } }, card));
     document.body.style.overflow = "hidden";
   }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.open) closeModal(); });
-  function cardShell(forText, title, bodyKids, footKids) {
+  function cardShell(forText, title, bodyKids, footKids, noClose) {
     return h("div", { class: "card", role: "dialog", "aria-modal": "true", "aria-label": title },
-      h("button", { class: "close", "aria-label": "Chiudi", onclick: closeModal }, "×"),
+      noClose ? null : h("button", { class: "close", "aria-label": "Chiudi", onclick: closeModal }, "×"),
       h("div", { class: "card-top" }, h("span", { class: "bow", "aria-hidden": "true" }, "🎀"), forText ? h("div", { class: "for" }, forText) : null, h("h3", {}, title)),
       h("div", { class: "card-body" }, bodyKids),
       footKids ? h("div", { class: "card-foot" }, footKids) : null);
@@ -602,11 +606,11 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     setTimeout(() => ta.focus(), 30);
   }
 
-  function simpleForm(title, intro, label, input, button, onSave) {
-    S.open = { kind: "simple" };
-    showModal(cardShell("", title,
+  function simpleForm(title, intro, label, input, button, onSave, required, forText) {
+    S.open = { kind: "simple", required: !!required };
+    showModal(cardShell(forText || "", title,
       h("form", { class: "booking plain", onsubmit: (e) => { e.preventDefault(); const v = input.value.trim(); if (v) onSave(v); else input.focus(); } },
-        intro ? h("p", { class: "hint" }, intro) : null, h("label", { class: "f" }, label, input), button)), true);
+        intro ? h("p", { class: "hint" }, intro) : null, h("label", { class: "f" }, label, input), button), null, !!required), true);
     setTimeout(() => input.select(), 30);
   }
   const openNewList = () => simpleForm("Nuova lista", "Una lista per ogni persona che riceve regali. Puoi gestirla anche al posto suo, come fai con quella della mamma.",
@@ -614,15 +618,22 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     h("button", { class: "btn red big", type: "submit" }, "Crea lista"), addList);
   const openRename = (list) => simpleForm("Rinomina lista", "", "Nome", h("input", { type: "text", id: "rename", value: list.name, maxlength: "30" }),
     h("button", { class: "btn red big", type: "submit" }, "Salva"), (v) => { closeModal(); write(() => S.db.doc("lists/" + list.id).update({ name: v }), "Lista rinominata"); });
-  function openName() {
-    const input = h("input", { type: "text", id: "me-name", value: S.me, placeholder: "Es. Zia Carla", maxlength: "40" });
-    const save = (v) => { rememberMe(v); closeModal(); render(); };
-    const names = [...new Set([...S.lists.map((l) => l.name), ...S.items.map((i) => i.claimedBy).filter(Boolean)])];
-    simpleForm("Come ti chiami?", "Serve per ritrovare i regali che hai prenotato. Se scegli il nome di una lista, su quella lista non vedrai chi ha prenotato cosa: niente spoiler.",
+  // required = the first visit: the name comes before anything else, so a list owner never sees who booked her gifts
+  function openName(required) {
+    const input = h("input", { type: "text", id: "me-name", value: S.me, placeholder: "Es. Zia Carla", maxlength: "40", autocomplete: "given-name" });
+    const save = (v) => { v = (v || "").trim(); if (!v) { input.focus(); return; } rememberMe(v); closeModal(true); render(); toast("Ciao " + v + "! 🎄"); };
+    const owners = S.lists.map((l) => l.name);
+    const others = [...new Set(S.items.map((i) => i.claimedBy).filter((n) => n && !owners.some((o) => norm(o) === norm(n))))];
+    const chips = (title, names) => names.length ? h("div", { class: "pick" }, h("span", { class: "pick-label" }, title),
+      h("div", { class: "chips" }, names.map((n) => h("button", { class: "btn line sm", type: "button", onclick: () => save(n) }, n)))) : null;
+    simpleForm(required ? "Come ti chiami?" : "Cambia nome",
+      required ? "Prima di entrare scrivi il tuo nome: serve per prenotare i regali. Se una delle liste è la tua, tocca il tuo nome qui sotto: così non vedrai chi ti regala cosa."
+               : "Se scegli il nome di una lista, su quella lista non vedrai chi ha prenotato cosa: niente spoiler.",
       "Il tuo nome", input,
-      [names.length ? h("div", { class: "chips" }, names.map((n) => h("button", { class: "btn line sm", type: "button", onclick: () => save(n) }, n))) : null,
-       h("button", { class: "btn red big", type: "submit" }, "Salva")], save);
+      [chips("Ho una lista:", owners), chips("Ho già prenotato come:", others),
+       h("button", { class: "btn red big", type: "submit" }, required ? "Entra" : "Salva")], save, required, required ? "Benvenuti" : "");
   }
+
 
   async function copy(text, input) {
     try { await navigator.clipboard.writeText(text); toast("Link copiato"); }
@@ -653,7 +664,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
   }
   function renderWho() {
     put($("#who"), [
-      S.me ? h("span", {}, "Ciao ", h("b", {}, S.me), " · ", h("button", { class: "linkbtn", onclick: openName }, "cambia nome")) : null,
+      S.me ? h("span", {}, "Ciao ", h("b", {}, S.me), " · ", h("button", { class: "linkbtn", onclick: () => openName(false) }, "cambia nome")) : null,
       S.mode === "firebase" && S.family && !fixedFamily() ? h("button", { class: "linkbtn", onclick: openShare }, "🔗 Link per la famiglia") : null
     ]);
   }
@@ -737,7 +748,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
 
   function renderMine() {
     const head = h("div", { class: "panel-head" }, h("div", {}, h("h2", {}, "I miei regali"), h("div", { class: "sub" }, "Tutto quello che hai prenotato, da tutte le liste.")));
-    if (!S.me) return [head, h("div", { class: "empty" }, h("div", { class: "big" }, "🎅"), h("h3", {}, "Come ti chiami?"), h("p", {}, "Quando prenoti un regalo scrivi il tuo nome: qui ritrovi tutto quello che hai preso."), h("button", { class: "btn red", onclick: openName }, "Scrivi il tuo nome"))];
+    if (!S.me) return [head, h("div", { class: "empty" }, h("div", { class: "big" }, "🎅"), h("h3", {}, "Come ti chiami?"), h("p", {}, "Quando prenoti un regalo scrivi il tuo nome: qui ritrovi tutto quello che hai preso."), h("button", { class: "btn red", onclick: () => openName(false) }, "Scrivi il tuo nome"))];
     const mine = S.items.filter((i) => i.claimedBy && isMe(i.claimedBy) && !ownList(listOf(i.listId)));
     if (!mine.length) return [head, h("div", { class: "empty" }, h("div", { class: "big" }, "🎁"), h("h3", {}, "Ancora nessun regalo"), h("p", {}, "Apri la lista di qualcuno, tocca un regalo e premi “Prenoto io”."))];
     const total = mine.reduce((s, i) => s + (Number(i.price) || 0), 0);
@@ -782,6 +793,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     put(main, parts);
     window.scrollTo(0, y);
     refreshModal(false);
+    if (S.ready && !S.me && !S.open) openName(true);
   }
   window.addEventListener("resize", renderLights);
 
