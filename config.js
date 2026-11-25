@@ -6,5 +6,7 @@ window.FIREBASE_CONFIG = {
   projectId: "lista-c828d",
   storageBucket: "lista-c828d.firebasestorage.app",
   messagingSenderId: "1061233175949",
-  appId: "1:1061233175949:web:0fcb061e2947c1a88a21c4"
+  appId: "1:1061233175949:web:0fcb061e2947c1a88a21c4",
+  // Lo spazio della famiglia: tutti aprono sempre queste liste, con un unico link.
+  family: "55x0bml6813x6ndfguhp"
 };

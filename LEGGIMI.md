@@ -29,12 +29,12 @@ del file `firestore.rules` di questo progetto e clicca **Pubblica**.
 3. Dopo un minuto l'indirizzo del sito compare in alto in quella pagina
    (sarà simile a `https://ariannapari03-crypto.github.io/Christmas/`).
 
-### 5. Crea il link per la famiglia
-Apri l'indirizzo del sito e clicca **Crea il nostro link**. L'app crea un link segreto solo per voi:
-è quello da mandare alle zie su WhatsApp. Lo ritrovi sempre in alto, alla voce **Link per la famiglia**.
+### 5. Il link per la famiglia
+In `config.js` la voce `family` fissa lo spazio della famiglia: chiunque apra l'indirizzo del sito
+vede sempre le stesse liste. C'è un solo link da mandare, quello del sito, senza niente dopo.
 
 ## Da sapere
 - Chi ha il link può vedere e modificare le liste, come un documento Google condiviso con "chiunque abbia il link".
-  Mandalo solo in famiglia.
+  Mandalo solo in famiglia. Il codice della famiglia è in `config.js`, quindi è visibile a chi guarda il repository pubblico.
 - Il piano gratuito di Firebase basta e avanza: 50.000 letture e 20.000 modifiche al giorno.
 - `artifact-claude.html` è la versione di anteprima per claude.ai: si rigenera da `index.html` con `python3 build-artifact.py`.

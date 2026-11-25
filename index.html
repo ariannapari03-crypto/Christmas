@@ -362,16 +362,18 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     const a = new Uint8Array(20); crypto.getRandomValues(a);
     return Array.from(a, (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
   }
-  const shareLink = () => location.origin + location.pathname + "#" + S.family;
+  // One fixed family space (config.js) means one plain link for everyone.
+  const fixedFamily = () => { const f = window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.family; return ID_RE.test(f || "") ? f : ""; };
+  const shareLink = () => location.origin + location.pathname + (fixedFamily() ? "" : "#" + S.family);
 
   async function boot() {
     const cfg = window.FIREBASE_CONFIG;
     if (cfg && cfg.projectId && window.firebase) {
       S.mode = "firebase";
-      S.family = familyFromHash() || store.get("family", "");
+      S.family = fixedFamily() || familyFromHash() || store.get("family", "");
       if (!ID_RE.test(S.family)) { S.family = ""; S.needsFamily = true; render(); return; }
-      store.set("family", S.family);
-      if (location.hash.slice(1) !== S.family) history.replaceState(null, "", "#" + S.family);
+      if (fixedFamily()) { if (location.hash) history.replaceState(null, "", location.pathname + location.search); }
+      else { store.set("family", S.family); if (location.hash.slice(1) !== S.family) history.replaceState(null, "", "#" + S.family); }
       S.needsFamily = false;
       if (!firebase.apps.length) firebase.initializeApp(cfg);
       const fs = firebase.firestore();
@@ -401,7 +403,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     });
   }
   window.addEventListener("hashchange", () => {
-    if (S.mode === "claude") return;
+    if (S.mode === "claude" || fixedFamily()) return;
     const f = familyFromHash(); if (f && f !== S.family) { store.set("family", f); location.reload(); }
   });
 
