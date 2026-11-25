@@ -654,7 +654,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
   function renderWho() {
     put($("#who"), [
       S.me ? h("span", {}, "Ciao ", h("b", {}, S.me), " · ", h("button", { class: "linkbtn", onclick: openName }, "cambia nome")) : null,
-      S.mode === "firebase" && S.family ? h("button", { class: "linkbtn", onclick: openShare }, "🔗 Link per la famiglia") : null
+      S.mode === "firebase" && S.family && !fixedFamily() ? h("button", { class: "linkbtn", onclick: openShare }, "🔗 Link per la famiglia") : null
     ]);
   }
   // inside a list or "I miei regali": just a way back to the closed boxes
