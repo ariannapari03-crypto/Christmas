@@ -188,6 +188,32 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--s5) + env(safe-area-inset-bottom, 0px)); z-index: 60;
   background: var(--gold); color: var(--ink); padding: var(--s3) var(--s5); border-radius: 999px; font-weight: 700; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
 @media (max-width: 520px) { .tags { gap: var(--s5); } .panel-head { margin-bottom: var(--s5); } .tools { width: 100%; } .tools .toggle { width: 100%; } .tools .btn { flex: 1; } }
+/* home: the lists as closed gift boxes */
+.tab.back { border-color: rgba(227,181,83,.4); }
+.tabs:has(.back) { justify-content: flex-start; margin: var(--s6) 0 var(--s5); }
+.home-head { border-bottom: 0; padding-bottom: 0; margin-bottom: var(--s5); justify-content: center; text-align: center; }
+.home-head > div:first-child { justify-items: center; }
+.boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s5); }
+.box { position: relative; aspect-ratio: 1 / 1; max-width: 100%; border: 0; border-radius: var(--r); cursor: pointer; font: inherit; color: var(--ink);
+  background: var(--berry); overflow: hidden; display: flex; align-items: flex-end; padding: var(--s3); text-align: left;
+  box-shadow: 0 14px 28px rgba(0,0,0,.35), inset 0 -6px 0 rgba(0,0,0,.12); transition: transform .25s ease; }
+.box.c1 { background: #1f5a42; }
+.box.c2 { background: #c9952f; }
+.box::before, .box::after { content: ""; position: absolute; background: var(--gold); }
+.box.c2::before, .box.c2::after { background: var(--berry); }
+.box::before { top: 0; bottom: 0; left: 50%; width: 16px; transform: translateX(-50%); }
+.box::after { left: 0; right: 0; top: 34%; height: 16px; }
+.box .bow { position: absolute; z-index: 1; left: 50%; top: 34%; transform: translate(-50%, -62%); font-size: 40px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.3)); }
+.box .label { position: relative; z-index: 2; width: 100%; background: var(--paper); border-radius: var(--r-sm); padding: var(--s2) var(--s3); display: grid; gap: 2px;
+  box-shadow: 0 4px 10px rgba(0,0,0,.2); }
+.box .label b { font-family: var(--serif); font-weight: 400; font-size: 24px; line-height: 1.05; overflow-wrap: anywhere; }
+.box .label small { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.box.mine, .box.add { background: rgba(13,36,27,.55); border: 1px dashed rgba(227,181,83,.5); box-shadow: none; }
+.box.mine::before, .box.mine::after, .box.add::before, .box.add::after { display: none; }
+.box .emoji { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font-size: 44px; line-height: 1; color: var(--gold-soft); font-family: var(--serif); }
+.box.add .emoji { font-size: 64px; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) { .box:hover { transform: translateY(-4px) rotate(-1.5deg); } }
+@media (max-width: 380px) { .boxes { gap: var(--s4); } .box .label b { font-size: 21px; } }
 @media (prefers-reduced-motion: reduce) { .bulb { animation: none; } }
 </style>
 <canvas id="snow" aria-hidden="true"></canvas>
@@ -235,7 +261,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     mode: null, db: null, family: "", needsFamily: false,
     ready: false, error: null, slow: false, readOnly: false,
     lists: [], items: [],
-    active: store.get("tab", ""),
+    active: "home", // always start on the closed boxes: no spoilers on opening
     me: store.get("me", ""),
     hideBooked: store.get("hideBooked", "0") === "1",
     confirm: null,
@@ -397,7 +423,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
     name = name.trim(); if (!name) return;
     const order = S.lists.reduce((m, l) => Math.max(m, l.order || 0), 0) + 1;
     const ref = S.db.collection("lists").doc();
-    S.active = ref.id; store.set("tab", ref.id);
+    S.active = ref.id;
     closeModal();
     write(() => ref.set({ name, order, createdAt: Date.now() }), `Lista di ${name} creata`);
   }
@@ -616,19 +642,31 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
       S.mode === "firebase" && S.family ? h("button", { class: "linkbtn", onclick: openShare }, "🔗 Link per la famiglia") : null
     ]);
   }
+  // inside a list or "I miei regali": just a way back to the closed boxes
+  function go(id) { S.active = id; S.confirm = null; render(); window.scrollTo(0, 0); }
   function renderTabs() {
-    const pick = (id) => { S.active = id; S.confirm = null; store.set("tab", id); render(); };
-    const mineCount = S.items.filter((i) => i.claimedBy && isMe(i.claimedBy) && !ownList(listOf(i.listId))).length;
-    put($("#tabs"), [
-      S.lists.map((l) => {
-        const its = itemsOf(l.id), free = its.filter((i) => !i.claimedBy).length;
-        return h("button", { class: "tab", role: "tab", "aria-selected": String(S.active === l.id), onclick: () => pick(l.id) },
-          l.name, h("span", { class: "n" }, ownList(l) ? its.length : `${free}/${its.length}`));
-      }),
-      h("button", { class: "tab", role: "tab", "aria-selected": String(S.active === "mine"), onclick: () => pick("mine") }, "🎅 I miei regali", h("span", { class: "n" }, mineCount)),
-      S.readOnly ? null : h("button", { class: "tab add", onclick: openNewList }, "+ Lista")
-    ]);
+    put($("#tabs"), S.active === "home" ? [] : h("button", { class: "tab back", onclick: () => go("home") }, "← Tutte le liste"));
   }
+
+  // the closed boxes: only names and how many gifts, never who booked what
+  function renderHome() {
+    const mineCount = S.items.filter((i) => i.claimedBy && isMe(i.claimedBy) && !ownList(listOf(i.listId))).length;
+    const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    return [
+      h("div", { class: "panel-head home-head" }, h("div", {}, h("h2", {}, "Di chi è la lista?"), h("div", { class: "sub" }, "Tocca un pacco per aprirlo"))),
+      h("div", { class: "boxes" },
+        S.lists.map((l, i) => h("button", { class: "box c" + (i % 3), onclick: () => go(l.id), "aria-label": "Apri la lista di " + l.name },
+          h("span", { class: "bow", "aria-hidden": "true" }, "🎀"),
+          h("span", { class: "label" }, h("b", {}, l.name), h("small", {}, n(itemsOf(l.id).length, "regalo", "regali"))))),
+        h("button", { class: "box mine", onclick: () => go("mine") },
+          h("span", { class: "emoji", "aria-hidden": "true" }, "🎅"),
+          h("span", { class: "label" }, h("b", {}, "I miei regali"), h("small", {}, S.me ? n(mineCount, "prenotato", "prenotati") : "Quelli che prenoti tu"))),
+        S.readOnly ? null : h("button", { class: "box add", onclick: openNewList },
+          h("span", { class: "emoji", "aria-hidden": "true" }, "+"),
+          h("span", { class: "label" }, h("b", {}, "Nuova lista"), h("small", {}, "Per un'altra persona"))))
+    ];
+  }
+
 
   function tagEl(it, showList) {
     const list = listOf(it.listId);
@@ -678,7 +716,7 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
   }
   function deleteList(list) {
     const ids = itemsOf(list.id).map((i) => i.id);
-    S.active = ""; store.set("tab", "");
+    S.active = "home";
     write(async () => { for (const id of ids) await S.db.doc("items/" + id).delete(); await S.db.doc("lists/" + list.id).delete(); }, "Lista eliminata");
   }
 
@@ -716,12 +754,13 @@ textarea { min-height: 160px; resize: vertical; font-size: 15px; line-height: 1.
         h("p", {}, S.slow ? "Controlla la connessione: appena torna, le liste compaiono da sole." : "Qui compaiono le liste dei regali di ogni persona.")));
       return;
     }
-    if (S.active !== "mine" && !listOf(S.active)) S.active = S.lists[0]?.id || "mine";
+    if (S.active !== "mine" && S.active !== "home" && !listOf(S.active)) S.active = "home";
     renderTabs();
     const parts = [];
     if (S.slow) parts.push(h("div", { class: "notice" }, "Collegamento lento: quello che vedi potrebbe non essere aggiornato."));
     if (S.readOnly) parts.push(h("div", { class: "notice" }, "Puoi guardare le liste ma non modificarle."));
     if (S.ready && !S.lists.length) parts.push(h("div", { class: "empty" }, h("div", { class: "big" }, "🎁"), h("h3", {}, "Nessuna lista ancora"), h("p", {}, "Crea la prima lista, per esempio quella della mamma."), S.readOnly ? null : h("button", { class: "btn red", onclick: openNewList }, "+ Nuova lista")));
+    else if (S.active === "home") parts.push(renderHome());
     else if (S.active === "mine") parts.push(renderMine());
     else parts.push(renderList(listOf(S.active)));
     const y = window.scrollY;
